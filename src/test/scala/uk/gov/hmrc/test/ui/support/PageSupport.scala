@@ -1,0 +1,180 @@
+/*
+ * Copyright 2025 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.test.ui.support
+
+import org.openqa.selenium.support.ui.*
+import org.openqa.selenium.{By, WebDriver, WebElement}
+import org.scalatest.matchers.must.Matchers
+import uk.gov.hmrc.test.ui.driver.BrowserDriver
+import uk.gov.hmrc.test.ui.pages.*
+
+import scala.concurrent.duration.*
+import scala.jdk.CollectionConverters.*
+import scala.jdk.DurationConverters.*
+
+import java.lang
+
+object PageSupport extends BrowserDriver with Matchers {
+
+  val backLink: By       = By.className("govuk-back-link")
+  val continueButton: By = By.id("continue")
+
+  inline final def fluentWait: Wait[WebDriver] = fluentWait(3.seconds, 200.milliseconds)
+
+  def fluentWait(timeout: FiniteDuration, polling: FiniteDuration): FluentWait[WebDriver] =
+    new FluentWait[WebDriver](driver)
+      .withTimeout(timeout.toJava)
+      .pollingEvery(polling.toJava)
+
+  def clickElement(locator: By): Unit = {
+    getElementIfClickable(locator).click()
+  }
+
+  def clickContinueButton(): Unit = {
+    getElementIfClickable(continueButton).click()
+  }
+
+  def clickRadioButton(locator: By): Unit =
+    fluentWait.until(ExpectedConditions.presenceOfElementLocated(locator)).click()
+
+  def clickOnBackLink(): Unit = {
+    getElementIfClickable(backLink).click()
+  }
+
+  def sendKeys(locator: By, value: String): Unit = {
+    val element = getElementIfVisible(locator)
+    element.clear()
+    element.sendKeys(value)
+  }
+
+  def clearField(locator: By): Unit = {
+    getElementIfVisible(locator).clear()
+  }
+
+  def selectDropdownById(id: By): Select = {
+    new Select(driver.findElement(id: By))
+  }
+
+  def extractRelativeUrl(url: String): String = {
+    val uri = java.net.URI.create(url)
+    uri.getPath
+  }
+
+  def assertElementIsClickable(locator: By): Unit = {
+    fluentWait.until(ExpectedConditions.elementToBeClickable(locator))
+  }
+
+  def assertElementNotVisible(locator: By): Unit = {
+    val elementNotVisible = fluentWait.until(ExpectedConditions.invisibilityOfElementLocated(locator))
+    elementNotVisible mustBe true
+  }
+
+  def assertTextIsHyperlink(locator: By, text: String): Unit = {
+    val element = getElementIfVisible(locator)
+    assertTextOnPage(element, text)
+    element.findElement(By.tagName("a")).getAttribute("href") mustNot be(empty)
+  }
+
+  def assertHyperlinkInList(locator: By, text: String): Unit = {
+    val element = driver
+      .findElements(locator)
+      .asScala
+      .find(e => e.isDisplayed && e.getText.trim == text)
+      .getOrElse(fail(s"Hyperlink with text '$text' was not found"))
+
+    element.getAttribute("href") mustNot be(empty)
+  }
+
+  def assertTextIsNotHyperlink(locator: By, text: String): Unit = {
+    val element = getElementIfVisible(locator)
+    assertTextOnPage(element, text)
+    element.findElements(By.tagName("a")).asScala mustBe empty
+  }
+
+  def assertLinkHasText(link: By, expectedText: String): Unit = {
+    assertElementIsClickable(link)
+    assertTextOnPage(link, expectedText)
+  }
+
+  def assertLinkHasTextWithHrefValue(locator: By, text: String, path: String): Unit = {
+    val element = fluentWait.until(ExpectedConditions.elementToBeClickable(locator))
+    element.getText mustBe text
+    extractRelativeUrl(element.getAttribute("href")) mustBe path
+  }
+
+  def assertTextOnPage(locator: By, text: String): Unit = {
+    getElementIfVisible(locator).getText mustBe text
+  }
+
+  def assertTextOnPage(element: WebElement, text: String): Unit = {
+    element.getText mustBe text
+  }
+
+  def assertAttributeMatches(locator: By, attribute: String, expectedText: String): Unit = {
+    getElementIfVisible(locator).getAttribute(attribute) mustBe expectedText
+  }
+
+  def assertUrl(url: String): Unit = {
+    fluentWait.until(ExpectedConditions.urlToBe(url))
+  }
+
+  def assertOnPage(page: BasePage with StaticUrl, expectedTitle: String): Unit = {
+    assertOnPage(page.pageUrl, expectedTitle)
+  }
+
+  def assertOnPage(page: BasePage with StaticUrl with StaticTitle): Unit = {
+    assertOnPage(page, None)
+  }
+
+  def assertPageWithError(page: BasePage with StaticUrl with StaticTitle): Unit = {
+    assertOnPage(page, Some(page.pageErrorTitle))
+  }
+
+  def assertPageTitle(expectedTitle: String): Unit = {
+    fluentWait.until(ExpectedConditions.titleIs(expectedTitle))
+  }
+
+  def switchTab(number: Int): WebDriver = {
+    val tabHandle = driver.getWindowHandles.asScala.toSeq(number)
+    driver.switchTo.window(tabHandle)
+  }
+
+  def closeCurrentTab(): Unit = {
+    val windowHandles = driver.getWindowHandles.asScala
+    val currentTab    = windowHandles.head
+    driver.close()
+    driver.switchTo.window(currentTab)
+    fluentWait.until(ExpectedConditions.numberOfWindowsToBe(windowHandles.size - 1))
+  }
+
+  private def assertOnPage(expectedPageUrl: String, expectedTitle: String): Unit = {
+    assertUrl(expectedPageUrl)
+    assertPageTitle(expectedTitle)
+  }
+
+  private def assertOnPage(page: BasePage with StaticUrl with StaticTitle, titleOverride: Option[String]): Unit = {
+    val expectedTitle = titleOverride.getOrElse(page.pageTitle)
+    assertOnPage(page, expectedTitle)
+  }
+
+  private def getElementIfVisible(locator: By): WebElement = {
+    fluentWait.until(ExpectedConditions.visibilityOfElementLocated(locator))
+  }
+
+  private def getElementIfClickable(locator: By): WebElement =
+    fluentWait.until(ExpectedConditions.elementToBeClickable(locator))
+}

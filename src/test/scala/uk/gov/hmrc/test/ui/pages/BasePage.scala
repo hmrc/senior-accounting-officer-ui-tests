@@ -1,0 +1,42 @@
+/*
+ * Copyright 2023 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.test.ui.pages
+
+import org.openqa.selenium.support.ui.*
+import org.openqa.selenium.{By, WebDriver}
+import org.scalatest.matchers.must.Matchers
+import uk.gov.hmrc.test.ui.driver.BrowserDriver
+import uk.gov.hmrc.test.ui.support.PageSupport
+
+import scala.concurrent.duration.FiniteDuration
+
+import java.lang
+
+trait BasePage extends BrowserDriver with Matchers {
+
+  inline protected def fluentWait: Wait[WebDriver] = PageSupport.fluentWait
+  inline final protected def fluentWait(timeout: FiniteDuration, polling: FiniteDuration): FluentWait[WebDriver] =
+    PageSupport.fluentWait(timeout, polling)
+
+  protected def navigateTo(url: String): Unit = {
+    driver.navigate().to(url)
+    fluentWait.until(ExpectedConditions.urlToBe(url))
+  }
+
+  protected def testId(id: String): By = By.cssSelector(s"""[data-test-id="$id"]""")
+
+}

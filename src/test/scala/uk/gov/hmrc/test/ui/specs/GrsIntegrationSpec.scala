@@ -1,0 +1,67 @@
+/*
+ * Copyright 2023 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.test.ui.specs
+
+import uk.gov.hmrc.test.ui.adt.AffinityGroup.Organisation
+import uk.gov.hmrc.test.ui.adt.PageSectionStatus.Completed
+import uk.gov.hmrc.test.ui.adt.RegistrationPageSection.CompanyDetails
+import uk.gov.hmrc.test.ui.pages.AuthorityWizardPage
+import uk.gov.hmrc.test.ui.pages.grs.*
+import uk.gov.hmrc.test.ui.pages.registration.GrsHost.GrsMicroservice
+import uk.gov.hmrc.test.ui.pages.registration.{FeatureTogglePage, RegistrationPage}
+import uk.gov.hmrc.test.ui.specs.tags.*
+import uk.gov.hmrc.test.ui.support.PageSupport.*
+
+class GrsIntegrationSpec extends BaseSpec {
+
+  Feature("Generic Registration Service (GRS) integration") {
+    Scenario(
+      "Integrate successfully with GRS",
+      RegistrationUITests,
+      ZapTests
+    ) {
+      Given("an authenticated user accesses the Generic Registration Service")
+      LimitedCompanyStubConfigurationPage.setStubbedDependencies()
+      FeatureTogglePage.setGrsHost(GrsMicroservice)
+      AuthorityWizardPage.withAffinityGroup(Organisation).redirectToRegistration()
+      RegistrationPage.clickEnterYourNominatedCompanyDetailsLink()
+      assertOnPage(NominatedCompanyDetailsGuidancePage)
+      NominatedCompanyDetailsGuidancePage.clickSubmissionButton()
+
+      When("the user completes a business match successfully")
+      CompanyRegistrationNumberPage.assertUrl()
+      val grsJourneyId = CompanyRegistrationNumberPage.extractParams
+      CompanyRegistrationNumberPage.enterCrnAndSubmit()
+      assertUrl(IsThisYourBusinessPage.pageUrl(grsJourneyId))
+      assertPageTitle(IsThisYourBusinessPage.pageTitle)
+      IsThisYourBusinessPage.selectYesRadioAndSubmit()
+      assertUrl(UniqueTaxpayerReferencePage.pageUrl(grsJourneyId))
+      assertPageTitle(UniqueTaxpayerReferencePage.pageTitle)
+      UniqueTaxpayerReferencePage.enterUtrAndSubmit()
+      assertUrl(GrsCheckYourAnswersPage.pageUrl(grsJourneyId))
+      assertPageTitle(GrsCheckYourAnswersPage.pageTitle)
+      GrsCheckYourAnswersPage.assertAnswersAndSubmit()
+
+      Then("the company details have a status of 'Completed' on the registration dashboard")
+      assertOnPage(RegistrationPage)
+      RegistrationPage.assertRegistrationPageSectionStatus(CompanyDetails, Completed)
+
+      And("the 'Enter your company details' link is not present")
+      RegistrationPage.assertEnterYourNominatedCompanyDetailsLinkNotFound()
+    }
+  }
+}

@@ -1,0 +1,136 @@
+/*
+ * Copyright 2025 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.test.ui.pages
+
+import org.openqa.selenium.By
+import uk.gov.hmrc.test.ui.adt.*
+import uk.gov.hmrc.test.ui.conf.TestConfiguration
+import uk.gov.hmrc.test.ui.pages.registration.*
+import uk.gov.hmrc.test.ui.support.PageSupport.{assertUrl, selectDropdownById, sendKeys}
+import uk.gov.hmrc.test.ui.support.SubmissionButtonSupport
+
+object AuthorityWizardPage extends CommonPage with SubmissionButtonSupport {
+  override val pageUrl: String   = TestConfiguration.url("auth-login-stub")
+  override val pageTitle: String = ""
+
+  private val redirectionUrlById: By                 = By.id("redirectionUrl")
+  private val affinityGroupById: By                  = By.id("affinityGroupSelect")
+  private val credentialRoleById: By                 = By.id("credential-role-select")
+  private val firstEnrolmentKeyInput: By             = By.id("enrolment[0].name")
+  private val firstEnrolmentIdentifierNameInput: By  = By.id("input-0-0-name")
+  private val firstEnrolmentIdentifierValueInput: By = By.id("input-0-0-value")
+  override def submissionButtonLocator: By           = By.id("submit-top")
+
+  private val redirectHomePageUrl: String = TestConfiguration.url("senior-accounting-officer-hub-frontend")
+
+  private def selectAffinityGroup(affinityGroup: AffinityGroup): Unit =
+    selectDropdownById(affinityGroupById).selectByVisibleText(affinityGroup.toString)
+
+  def withAffinityGroup(affinityGroup: AffinityGroup): AuthorityWizardConfig = AuthorityWizardConfig(affinityGroup)
+
+  def withCredentialRole(config: AuthorityWizardConfig)(credentialRole: CredentialRole): AuthorityWizardConfig = {
+    config.copy(credentialRole = Some(credentialRole))
+  }
+
+  def selectCredentialRole(credentialRole: CredentialRole): Unit =
+    selectDropdownById(credentialRoleById).selectByVisibleText(credentialRole.toString)
+
+  def redirectToRegistration(config: AuthorityWizardConfig): Unit =
+    redirectTo(config, url = RegistrationPage.stubEnrolmentUrl, urlToAssert = RegistrationPage.pageUrl)
+
+  def redirectToCompanyAlreadyRegistered(config: AuthorityWizardConfig): Unit =
+    redirectTo(
+      config,
+      url = RegistrationPage.pageUrl,
+      urlToAssert = CompanyAlreadyRegisteredPage.companyAlreadyRegisteredUrl
+    )
+
+  def redirectToAgentCannotAccessThisService(config: AuthorityWizardConfig): Unit =
+    redirectTo(
+      config,
+      url = RegistrationPage.pageUrl,
+      urlToAssert = AgentCannotAccessThisServicePage.pageUrl
+    )
+
+  def redirectToIndividualCannotAccessThisService(config: AuthorityWizardConfig): Unit =
+    redirectTo(
+      config,
+      url = RegistrationPage.pageUrl,
+      urlToAssert = IndividualCannotAccessThisServicePage.pageUrl
+    )
+
+  def redirectToStandardUserCannotAccessThisService(config: AuthorityWizardConfig): Unit = {
+    redirectTo(
+      config,
+      url = RegistrationPage.pageUrl,
+      urlToAssert = StandardUserCannotAccessThisServicePage.pageUrl
+    )
+  }
+
+  def redirectToHomePage(config: AuthorityWizardConfig): Unit =
+    redirectTo(config, url = redirectHomePageUrl, urlToAssert = redirectHomePageUrl)
+
+  def redirectToNotEnrolledPage(config: AuthorityWizardConfig): Unit = {
+    redirectTo(config = config, url = AccountHomePage.pageUrl, urlToAssert = NotEnrolledPage.pageUrl)
+  }
+
+  private def redirectTo(config: AuthorityWizardConfig, url: String, urlToAssert: String): Unit = {
+    loadPage()
+    sendKeys(redirectionUrlById, url)
+    selectAffinityGroup(config.affinityGroup)
+    config.credentialRole.foreach(selectCredentialRole)
+    config.enrolment.foreach { enrolment =>
+      sendKeys(firstEnrolmentKeyInput, enrolment.enrolmentKey)
+      sendKeys(firstEnrolmentIdentifierNameInput, enrolment.identifierName)
+      sendKeys(firstEnrolmentIdentifierValueInput, enrolment.identifierValue)
+    }
+    clickSubmissionButton()
+    assertUrl(urlToAssert)
+  }
+
+  def withDsaoEnrolment(config: AuthorityWizardConfig)(subscriptionId: String): AuthorityWizardConfig = {
+    config.copy(enrolment =
+      Some(
+        Enrolment(
+          enrolmentKey = "HMRC-DSAO-ORG",
+          identifierName = "EtmpSubscriptionId",
+          identifierValue = subscriptionId
+        )
+      )
+    )
+  }
+}
+
+final case class AuthorityWizardConfig private[pages] (
+    affinityGroup: AffinityGroup,
+    credentialRole: Option[CredentialRole] = None,
+    enrolment: Option[Enrolment] = None
+) {
+  def redirectToRegistration(): Unit                 = AuthorityWizardPage.redirectToRegistration(this)
+  def redirectToCompanyAlreadyRegistered(): Unit     = AuthorityWizardPage.redirectToCompanyAlreadyRegistered(this)
+  def redirectToAgentCannotAccessThisService(): Unit = AuthorityWizardPage.redirectToAgentCannotAccessThisService(this)
+  def redirectToIndividualCannotAccessThisService(): Unit =
+    AuthorityWizardPage.redirectToIndividualCannotAccessThisService(this)
+  def redirectToStandardUserCannotAccessThisService(): Unit =
+    AuthorityWizardPage.redirectToStandardUserCannotAccessThisService(this)
+  def redirectToHomePage(): Unit        = AuthorityWizardPage.redirectToHomePage(this)
+  def redirectToNotEnrolledPage(): Unit = AuthorityWizardPage.redirectToNotEnrolledPage(this)
+  def withDsaoEnrolment(subscriptionId: String): AuthorityWizardConfig =
+    AuthorityWizardPage.withDsaoEnrolment(this)(subscriptionId)
+  def withCredentialRole(credentialRole: CredentialRole): AuthorityWizardConfig =
+    AuthorityWizardPage.withCredentialRole(this)(credentialRole)
+}

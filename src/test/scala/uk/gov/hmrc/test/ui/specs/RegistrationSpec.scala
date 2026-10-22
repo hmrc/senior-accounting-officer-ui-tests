@@ -1,0 +1,147 @@
+/*
+ * Copyright 2023 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.test.ui.specs
+
+import uk.gov.hmrc.test.ui.adt.AffinityGroup.{Agent, Individual, Organisation}
+import uk.gov.hmrc.test.ui.adt.CredentialRole.Assistant
+import uk.gov.hmrc.test.ui.adt.PageSectionStatus.{CannotStartYet, NotStarted}
+import uk.gov.hmrc.test.ui.adt.RegistrationPageLink.EnterYourNominatedCompanyDetailsLink
+import uk.gov.hmrc.test.ui.adt.RegistrationPageSection.{CompanyDetails, ContactDetails}
+import uk.gov.hmrc.test.ui.pages.AuthorityWizardPage
+import uk.gov.hmrc.test.ui.pages.grs.NominatedCompanyDetailsGuidancePage
+import uk.gov.hmrc.test.ui.pages.registration.*
+import uk.gov.hmrc.test.ui.pages.registration.GrsHost.GrsStubOnRegistrationFrontEnd
+import uk.gov.hmrc.test.ui.specs.tags.*
+import uk.gov.hmrc.test.ui.support.PageSupport.assertOnPage
+import uk.gov.hmrc.test.ui.support.TestData
+
+class RegistrationSpec extends BaseSpec {
+
+  Feature("Business registration") {
+
+    Scenario(
+      "The registration page displays with the correct page elements and values when starting a new registration",
+      RegistrationUITests,
+      ZapTests
+    ) {
+      Given("an authenticated user lands on the registration page to register a business")
+      AuthorityWizardPage.withAffinityGroup(Organisation).redirectToRegistration()
+      assertOnPage(RegistrationPage)
+
+      Then("the page displays with the expected page elements and values required at the start of a new registration")
+      RegistrationPage.assertLinkIsVisibleWithText(EnterYourNominatedCompanyDetailsLink)
+      RegistrationPage.assertRegistrationPageSectionStatus(CompanyDetails, NotStarted)
+      RegistrationPage.assertEnterYourContactDetailsLinkNotFound()
+      RegistrationPage.assertRegistrationPageSectionStatus(ContactDetails, CannotStartYet)
+      RegistrationPage.assertSubmitButtonDoesNotExist()
+    }
+
+    Scenario(
+      "After adding company details successfully the action states update correctly on the registration page",
+      RegistrationUITests,
+      ZapTests
+    ) {
+      Given("a user successfully adds company details from the registration page")
+      FeatureTogglePage.setGrsHost(GrsStubOnRegistrationFrontEnd)
+      AuthorityWizardPage.withAffinityGroup(Organisation).redirectToRegistration()
+      RegistrationPage.clickEnterYourNominatedCompanyDetailsLink()
+      assertOnPage(NominatedCompanyDetailsGuidancePage)
+      NominatedCompanyDetailsGuidancePage.clickSubmissionButton()
+      GrsStubPage.clickStubResponseButton()
+
+      Then("the action states displayed on the registration page are updated correctly")
+      RegistrationPage.assertEnterYourContactDetailsLinkFound()
+      RegistrationPage.assertRegistrationPageSectionStatus(ContactDetails, NotStarted)
+    }
+
+    Scenario(
+      "Already enrolled user is prevented from registering",
+      RegistrationUITests,
+      ZapTests
+    ) {
+      Given("an enrolled user lands on the 'Your company has already registered' page")
+      AuthorityWizardPage
+        .withAffinityGroup(Organisation)
+        .withDsaoEnrolment(TestData.subscriptionId)
+        .redirectToCompanyAlreadyRegistered()
+      CompanyAlreadyRegisteredPage.assertLinkHasTextOnPage(
+        CompanyAlreadyRegisteredPage.businessTaxAccountLink,
+        "business tax account (opens in new tab)"
+      )
+    }
+
+    Scenario(
+      "Agent user sees 'You cannot access this service' page",
+      RegistrationUITests,
+      ZapTests
+    ) {
+      Given("an Agent user lands on the 'You cannot access this service' page")
+      AuthorityWizardPage
+        .withAffinityGroup(Agent)
+        .redirectToAgentCannotAccessThisService()
+      assertOnPage(AgentCannotAccessThisServicePage)
+      AgentCannotAccessThisServicePage.assertLinkHasTextOnPage(
+        AgentCannotAccessThisServicePage.whoCanUseThisServiceLink,
+        "Find out more about who can use this service"
+      )
+    }
+
+    Scenario(
+      "A user categorised with an affinity group of 'Individual' attempts to sign-in",
+      RegistrationUITests,
+      ZapTests
+    ) {
+      Given(
+        "a user categorised with an affinity group of 'Individual' lands on the 'You cannot access this service' page"
+      )
+      AuthorityWizardPage
+        .withAffinityGroup(Individual)
+        .redirectToIndividualCannotAccessThisService()
+      assertOnPage(IndividualCannotAccessThisServicePage)
+
+      Then("the 'sign in to Government Gateway with an organisation account' link is present")
+      IndividualCannotAccessThisServicePage.assertLinkHasTextOnPage(
+        IndividualCannotAccessThisServicePage.whoCanUseThisServiceLink,
+        "Find out more about who can use this service"
+      )
+
+      And("the 'Find out more about who can use this service' link is present")
+      IndividualCannotAccessThisServicePage.assertLinkHasTextOnPage(
+        IndividualCannotAccessThisServicePage.governmentGatewayOrganisationSignIn,
+        "sign in to Government Gateway with an organisation account"
+      )
+    }
+  }
+
+  Scenario(
+    "User with credential role of 'assistant' and affinity group of 'Organisation', sees 'You cannot access this service' page",
+    RegistrationUITests,
+    ZapTests
+  ) {
+    Given("standard user lands on the 'You cannot access this service' page")
+    AuthorityWizardPage
+      .withAffinityGroup(Organisation)
+      .withCredentialRole(Assistant)
+      .redirectToStandardUserCannotAccessThisService()
+    assertOnPage(StandardUserCannotAccessThisServicePage)
+    StandardUserCannotAccessThisServicePage.assertLinkHasTextOnPage(
+      StandardUserCannotAccessThisServicePage.governmentGatewayOrganisationSignIn,
+      "sign in using an organisation Government Gateway ID"
+    )
+  }
+
+}
